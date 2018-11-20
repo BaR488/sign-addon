@@ -6,6 +6,7 @@ import defaultJwt from "jsonwebtoken";
 import {default as defaultRequest} from "request";
 import when from "when";
 import nodefn from "when/node";
+import promiseRetry from "promise-retry";
 
 const defaultSetInterval = setInterval;
 const defaultClearInterval = clearInterval;
@@ -313,11 +314,24 @@ export class Client {
       });
     };
 
+    const downloadRetry = (fileUrl) => {
+        return promiseRetry((retry, number) => {
+            this.logger.log("Downloading attempt number", number);
+            return download(fileUrl).catch(function (err) {
+                if (number < 5) {
+                    retry(err);
+                }
+
+                throw err;
+            });
+        });
+    };
+
     return when.promise((resolve, reject) => {
       var foundUnsignedFiles = false;
       signedFiles.forEach((file) => {
         if (file.signed) {
-          allDownloads.push(download(file.download_url));
+          allDownloads.push(downloadRetry(file.download_url));
         } else {
           this.debug("This file was not signed:", file);
           foundUnsignedFiles = true;
